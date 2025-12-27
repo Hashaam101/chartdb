@@ -93,50 +93,27 @@ Or like this if you want to have AI capabilities:
 
 ```bash
 npm install
-VITE_OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> npm run build
+VITE_GEMINI_API_KEY=<YOUR_GEMINI_API_KEY> npm run build
 ```
 
 ### Run the Docker Container
 
 ```bash
-docker run -e OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> -p 8080:80 ghcr.io/chartdb/chartdb:latest
+docker run -e GEMINI_API_KEY=<YOUR_GEMINI_API_KEY> -p 8080:80 ghcr.io/chartdb/chartdb:latest
 ```
 
 #### Build and Run locally
 
 ```bash
 docker build -t chartdb .
-docker run -e OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> -p 8080:80 chartdb
-```
-
-#### Using Custom Inference Server
-
-```bash
-# Build
-docker build \
-  --build-arg VITE_OPENAI_API_ENDPOINT=<YOUR_ENDPOINT> \
-  --build-arg VITE_LLM_MODEL_NAME=<YOUR_MODEL_NAME> \
-  -t chartdb .
-
-# Run
-docker run \
-  -e OPENAI_API_ENDPOINT=<YOUR_ENDPOINT> \
-  -e LLM_MODEL_NAME=<YOUR_MODEL_NAME> \
-  -p 8080:80 chartdb
+docker run -e GEMINI_API_KEY=<YOUR_GEMINI_API_KEY> -p 8080:80 chartdb
 ```
 
 > **Privacy Note:** ChartDB includes privacy-focused analytics via Fathom Analytics. You can disable this by adding `-e DISABLE_ANALYTICS=true` to the run command or `--build-arg VITE_DISABLE_ANALYTICS=true` when building.
 
-> **Note:** You must configure either Option 1 (OpenAI API key) OR Option 2 (Custom endpoint and model name) for AI capabilities to work. Do not mix the two options.
+> **Note:** You must configure the Gemini API key for AI capabilities to work.
 
 Open your browser and navigate to `http://localhost:8080`.
-
-Example configuration for a local vLLM server:
-
-```bash
-VITE_OPENAI_API_ENDPOINT=http://localhost:8000/v1
-VITE_LLM_MODEL_NAME=Qwen/Qwen2.5-32B-Instruct-AWQ
-```
 
 ## Try it on our website
 

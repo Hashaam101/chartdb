@@ -366,7 +366,7 @@ export const en = {
                 message:
                     'Error generating SQL script. Please try again later or <0>contact us</0>.',
                 description:
-                    'Feel free to use your OPENAI_TOKEN, see the manual <0>here</0>.',
+                    'Feel free to use your GEMINI_API_KEY, see the manual <0>here</0>.',
             },
         },
 

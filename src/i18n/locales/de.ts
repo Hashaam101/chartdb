@@ -379,7 +379,7 @@ export const de: LanguageTranslation = {
                 message:
                     'Fehler beim Generieren des SQL-Skripts. Bitte versuchen Sie es später erneut oder <0>kontaktieren Sie uns</0>.',
                 description:
-                    'Verwenden Sie Ihren OPENAI_TOKEN, siehe Anleitung <0>hier</0>.',
+                    'Verwenden Sie Ihren GEMINI_API_KEY, siehe Anleitung <0>hier</0>.',
             },
         },
 

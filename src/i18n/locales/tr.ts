@@ -373,7 +373,7 @@ export const tr: LanguageTranslation = {
                 message:
                     'SQL betiği oluşturulurken hata oluştu. Lütfen daha sonra tekrar deneyin veya <0>bize ulaşın</0>.',
                 description:
-                    "OPENAI_TOKEN'ınızı kullanabilirsiniz, kılavuzu <0>buradan</0> görebilirsiniz.",
+                    "GEMINI_API_KEY'ınızı kullanabilirsiniz, kılavuzu <0>buradan</0> görebilirsiniz.",
             },
         },
         create_relationship_dialog: {

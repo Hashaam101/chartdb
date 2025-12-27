@@ -370,7 +370,7 @@ export const hr: LanguageTranslation = {
                 message:
                     'Greška pri generiranju SQL skripte. Molimo pokušajte ponovno kasnije ili <0>kontaktirajte nas</0>.',
                 description:
-                    'Slobodno koristite svoj OPENAI_TOKEN, pogledajte priručnik <0>ovdje</0>.',
+                    'Slobodno koristite svoj GEMINI_API_KEY, pogledajte priručnik <0>ovdje</0>.',
             },
         },
 

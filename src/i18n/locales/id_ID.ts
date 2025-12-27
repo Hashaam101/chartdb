@@ -374,7 +374,7 @@ export const id_ID: LanguageTranslation = {
                 message:
                     'Kesalahan saat menghasilkan skrip SQL. Silakan coba lagi nanti atau <0>hubungi kami</0>.',
                 description:
-                    'Silakan gunakan OPENAI_TOKEN Anda, lihat petunjuk <0>di sini</0>.',
+                    'Silakan gunakan GEMINI_API_KEY Anda, lihat petunjuk <0>di sini</0>.',
             },
         },
 

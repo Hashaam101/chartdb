@@ -374,7 +374,7 @@ export const vi: LanguageTranslation = {
                 message:
                     'Lỗi khi tạo SQL. Vui lòng thử lại sau hoặc <0>liên hệ với chúng tôi</0>.',
                 description:
-                    'Bạn có thể sử dụng OPENAI_TOKEN, xem hướng dẫn <0>tại đây</0>.',
+                    'Bạn có thể sử dụng GEMINI_API_KEY, xem hướng dẫn <0>tại đây</0>.',
             },
         },
 

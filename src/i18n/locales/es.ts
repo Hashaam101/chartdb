@@ -377,7 +377,7 @@ export const es: LanguageTranslation = {
                 message:
                     'Error al generar el script SQL. Por favor, intenta nuevamente más tarde o <0>contáctanos</0>.',
                 description:
-                    'Siéntete libre de usar tu OPENAI_TOKEN, consulta el manual <0>aquí</0>.',
+                    'Siéntete libre de usar tu GEMINI_API_KEY, consulta el manual <0>aquí</0>.',
             },
         },
 

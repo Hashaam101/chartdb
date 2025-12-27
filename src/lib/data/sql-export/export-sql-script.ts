@@ -1,5 +1,5 @@
 import type { Diagram } from '../../domain/diagram';
-import { OPENAI_API_KEY, OPENAI_API_ENDPOINT, LLM_MODEL_NAME } from '@/lib/env';
+import { GEMINI_API_KEY, LLM_MODEL_NAME } from '@/lib/env';
 import { DatabaseType } from '@/lib/domain/database-type';
 import type { DBTable } from '@/lib/domain/db-table';
 import { dataTypeMap, type DataType } from '../data-types/data-types';
@@ -700,22 +700,15 @@ export const exportBaseSQL = ({
 };
 
 const validateConfiguration = () => {
-    const apiKey = window?.env?.OPENAI_API_KEY ?? OPENAI_API_KEY;
-    const baseUrl = window?.env?.OPENAI_API_ENDPOINT ?? OPENAI_API_ENDPOINT;
-    const modelName = window?.env?.LLM_MODEL_NAME ?? LLM_MODEL_NAME;
+    const apiKey = window?.env?.GEMINI_API_KEY ?? GEMINI_API_KEY;
 
-    // If using custom endpoint and model, don't require OpenAI API key
-    if (baseUrl && modelName) {
-        return { useCustomEndpoint: true };
-    }
-
-    // If using OpenAI's service, require API key
+    // If using Gemini service, require API key
     if (apiKey) {
         return { useCustomEndpoint: false };
     }
 
     throw new Error(
-        'Configuration Error: Either provide an OpenAI API key or both a custom endpoint and model name'
+        'Configuration Error: Please provide a Gemini API key'
     );
 };
 
@@ -747,39 +740,27 @@ export const exportSQL = async (
     // Validate configuration before proceeding
     const { useCustomEndpoint } = validateConfiguration();
 
-    const [{ streamText, generateText }, { createOpenAI }] = await Promise.all([
+    const [{ streamText, generateText }, { createGoogleGenerativeAI }] = await Promise.all([
         import('ai'),
-        import('@ai-sdk/openai'),
+        import('@ai-sdk/google'),
     ]);
 
-    const apiKey = window?.env?.OPENAI_API_KEY ?? OPENAI_API_KEY;
-    const baseUrl = window?.env?.OPENAI_API_ENDPOINT ?? OPENAI_API_ENDPOINT;
+    const apiKey = window?.env?.GEMINI_API_KEY ?? GEMINI_API_KEY;
     const modelName =
         window?.env?.LLM_MODEL_NAME ??
         LLM_MODEL_NAME ??
-        'gpt-4o-mini-2024-07-18';
+        'gemini-1.5-flash';
 
-    let config: { apiKey: string; baseUrl?: string };
-
-    if (useCustomEndpoint) {
-        config = {
-            apiKey: apiKey,
-            baseUrl: baseUrl,
-        };
-    } else {
-        config = {
-            apiKey: apiKey,
-        };
-    }
-
-    const openai = createOpenAI(config);
+    const google = createGoogleGenerativeAI({
+        apiKey: apiKey,
+    });
 
     const prompt = generateSQLPrompt(databaseType, sqlScript);
 
     try {
         if (options?.stream) {
             const { textStream, text: textPromise } = await streamText({
-                model: openai(modelName),
+                model: google(modelName),
                 prompt: prompt,
             });
 
@@ -797,7 +778,7 @@ export const exportSQL = async (
         }
 
         const { text } = await generateText({
-            model: openai(modelName),
+            model: google(modelName),
             prompt: prompt,
         });
 
@@ -807,7 +788,7 @@ export const exportSQL = async (
         console.error('Error generating SQL:', error);
         if (error instanceof Error && error.message.includes('API key')) {
             throw new Error(
-                'Error: Please check your API configuration. If using a custom endpoint, make sure the endpoint URL is correct.'
+                'Error: Please check your Gemini API key configuration.'
             );
         }
         throw new Error(
