@@ -51,6 +51,7 @@ export const KeyboardShortcutsProvider: React.FC<React.PropsWithChildren> = ({
         updateDiagramUpdatedAt,
         {
             preventDefault: true,
+            enableOnFormTags: true,
         },
         [updateDiagramUpdatedAt]
     );

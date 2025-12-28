@@ -1,64 +1,121 @@
 import type { Monaco } from '@monaco-editor/react';
 import type { IDisposable } from 'monaco-editor';
-import { Compiler, services } from '@dbml/parse';
+import { dataTypes } from '@/lib/data/data-types/data-types';
 
 /**
- * Creates and manages a DBML completion provider using @dbml/parse.
- *
- * The provider maintains a Compiler instance that needs to be kept in sync
- * with the editor content to provide context-aware completions.
+ * Creates and manages a DBML completion provider.
  */
 export interface DBMLCompletionManager {
     /** Disposable to clean up the completion provider registration */
     dispose: () => void;
-    /** Update the compiler with new DBML content */
+    /** Update the compiler with new DBML content (noop for now) */
     updateSource: (content: string) => void;
 }
-
-// Trigger characters for DBML completions
-const TRIGGER_CHARACTERS = [' ', '[', ':', '.', '>', '<', '-'];
 
 /**
  * Registers a DBML completion provider with Monaco editor.
  *
- * Uses @dbml/parse's built-in DBMLCompletionItemProvider which provides:
- * - Context-aware keyword suggestions (Table, Ref, Enum, etc.)
- * - Symbol suggestions based on parsed DBML (table names, column names)
+ * Provides:
+ * - Keyword suggestions (Table, Ref, Enum, etc.)
  * - Field setting suggestions (pk, not null, unique, etc.)
- * - Ref operator suggestions (>, <, -, <>)
+ * - Data type suggestions
  *
  * @param monaco - Monaco editor instance
- * @param initialContent - Initial DBML content to parse
  * @returns Manager object with dispose and updateSource methods
  */
 export function registerDBMLCompletionProvider(
-    monaco: Monaco,
-    initialContent: string = ''
+    monaco: Monaco
 ): DBMLCompletionManager {
-    const compiler = new Compiler();
+    const keywords = [
+        'Table',
+        'Ref',
+        'Enum',
+        'Indexes',
+        'Note',
+        'Project',
+        'TableGroup',
+    ];
 
-    // Initialize with content if provided
-    if (initialContent) {
-        compiler.setSource(initialContent);
-    }
+    const settings = [
+        'primary key',
+        'pk',
+        'not null',
+        'null',
+        'unique',
+        'default',
+        'increment',
+        'note',
+        'ref',
+    ];
 
-    // Create the completion provider from @dbml/parse
-    const completionProvider = new services.DBMLCompletionItemProvider(
-        compiler,
-        TRIGGER_CHARACTERS
-    );
+    const types = dataTypes.map((dt) => dt.name);
 
     // Register with Monaco
     const disposable: IDisposable =
-        monaco.languages.registerCompletionItemProvider(
-            'dbml',
-            completionProvider
-        );
+        monaco.languages.registerCompletionItemProvider('dbml', {
+            provideCompletionItems: (model, position) => {
+                const word = model.getWordUntilPosition(position);
+                const range = {
+                    startLineNumber: position.lineNumber,
+                    endLineNumber: position.lineNumber,
+                    startColumn: word.startColumn,
+                    endColumn: word.endColumn,
+                };
+
+                // Extract all unique words from the document
+                const text = model.getValue();
+                const uniqueWords = new Set<string>(
+                    text.match(/[a-zA-Z_]\w*/g) || []
+                );
+
+                // Filter out words that are already keywords, settings, or types to avoid duplicates
+                const existingLabels = new Set([
+                    ...keywords,
+                    ...settings,
+                    ...types,
+                ]);
+
+                const wordSuggestions = Array.from(uniqueWords)
+                    .filter((w) => !existingLabels.has(w) && w.length > 1)
+                    .map((w) => ({
+                        label: w,
+                        kind: monaco.languages.CompletionItemKind.Text,
+                        insertText: w,
+                        range: range,
+                    }));
+
+                const suggestions = [
+                    ...keywords.map((k) => ({
+                        label: k,
+                        kind: monaco.languages.CompletionItemKind.Keyword,
+                        insertText: k,
+                        range: range,
+                    })),
+                    ...settings.map((s) => ({
+                        label: s,
+                        kind: monaco.languages.CompletionItemKind.Property,
+                        insertText: s,
+                        range: range,
+                    })),
+                    ...types.map((t) => ({
+                        label: t,
+                        kind: monaco.languages.CompletionItemKind.TypeParameter,
+                        insertText: t,
+                        range: range,
+                    })),
+                    ...wordSuggestions,
+                ];
+
+                return {
+                    suggestions: suggestions,
+                };
+            },
+        });
 
     return {
         dispose: () => disposable.dispose(),
-        updateSource: (content: string) => {
-            compiler.setSource(content);
+        updateSource: () => {
+            // No-op for manual provider
         },
     };
 }

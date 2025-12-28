@@ -26,6 +26,7 @@ export interface DBTable {
     width?: number | null;
     comments?: string | null;
     order?: number | null;
+    dbmlOrder?: number | null; // Order of table in DBML code (separate from visual order)
     expanded?: boolean | null;
     parentAreaId?: string | null;
 }
@@ -45,6 +46,7 @@ export const dbTableSchema: z.ZodType<DBTable> = z.object({
     width: z.number().or(z.null()).optional(),
     comments: z.string().or(z.null()).optional(),
     order: z.number().or(z.null()).optional(),
+    dbmlOrder: z.number().or(z.null()).optional(),
     expanded: z.boolean().or(z.null()).optional(),
     parentAreaId: z.string().or(z.null()).optional(),
 });

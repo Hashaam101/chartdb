@@ -28,6 +28,7 @@ const relationshipTypes: RelationshipTypeOption[] = [
     { label: '1:1', sourceCardinality: 'one', targetCardinality: 'one' },
     { label: '1:N', sourceCardinality: 'one', targetCardinality: 'many' },
     { label: 'N:1', sourceCardinality: 'many', targetCardinality: 'one' },
+    { label: 'N:N', sourceCardinality: 'many', targetCardinality: 'many' },
 ];
 
 export const EditRelationshipPopover: React.FC<

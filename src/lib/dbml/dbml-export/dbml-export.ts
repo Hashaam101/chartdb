@@ -5,6 +5,7 @@ import { DatabaseType } from '@/lib/domain/database-type';
 import type { DBTable } from '@/lib/domain/db-table';
 import type { DBCustomType } from '@/lib/domain/db-custom-type';
 import { DBCustomTypeKind } from '@/lib/domain/db-custom-type';
+import type { DBRelationship } from '@/lib/domain/db-relationship';
 
 // Use DBCustomType for generating Enum DBML
 const generateEnumsDBML = (customTypes: DBCustomType[] | undefined): string => {
@@ -32,6 +33,67 @@ const generateEnumsDBML = (customTypes: DBCustomType[] | undefined): string => {
             return `Enum ${enumIdentifier} {\n${valuesString}\n}\n`;
         })
         .join('\n');
+};
+
+// Generate DBML Ref statements for many-to-many relationships
+// These are skipped by SQL export since SQL doesn't support M:N directly
+const generateManyToManyRefs = (
+    relationships: DBRelationship[] | undefined,
+    tables: DBTable[]
+): string => {
+    if (!relationships || relationships.length === 0) {
+        return '';
+    }
+
+    const tableMap = new Map(tables.map((t) => [t.id, t]));
+    const fieldMap = new Map<
+        string,
+        { name: string; tableName: string; schema?: string | null }
+    >();
+
+    tables.forEach((table) => {
+        table.fields.forEach((field) => {
+            fieldMap.set(field.id, {
+                name: field.name,
+                tableName: table.name,
+                schema: table.schema,
+            });
+        });
+    });
+
+    const manyToManyRefs = relationships
+        .filter(
+            (rel) =>
+                rel.sourceCardinality === 'many' &&
+                rel.targetCardinality === 'many'
+        )
+        .map((rel, index) => {
+            const sourceTable = tableMap.get(rel.sourceTableId);
+            const targetTable = tableMap.get(rel.targetTableId);
+            const sourceField = fieldMap.get(rel.sourceFieldId);
+            const targetField = fieldMap.get(rel.targetFieldId);
+
+            if (!sourceTable || !targetTable || !sourceField || !targetField) {
+                return null;
+            }
+
+            const sourceRef = sourceTable.schema
+                ? `"${sourceTable.schema}"."${sourceTable.name}"."${sourceField.name}"`
+                : `"${sourceTable.name}"."${sourceField.name}"`;
+
+            const targetRef = targetTable.schema
+                ? `"${targetTable.schema}"."${targetTable.name}"."${targetField.name}"`
+                : `"${targetTable.name}"."${targetField.name}"`;
+
+            const refName = rel.name
+                ? rel.name.replace(/[^\w]/g, '_')
+                : `m2m_${index}`;
+
+            return `Ref "${refName}":${sourceRef} <> ${targetRef}`;
+        })
+        .filter(Boolean);
+
+    return manyToManyRefs.join('\n');
 };
 
 const databaseTypeToImportFormat = (
@@ -257,8 +319,9 @@ const findClosingBracket = (str: string, openBracketIndex: number): number => {
 const convertToInlineRefs = (dbml: string): string => {
     // Extract all Ref statements - Updated pattern to handle schema.table.field format
     // Matches both "table"."field" and "schema"."table"."field" formats
+    // Also handles <> for many-to-many relationships
     const refPattern =
-        /Ref\s+"([^"]+)"\s*:\s*(?:"([^"]+)"\.)?"([^"]+)"\."([^"]+)"\s*([<>*])\s*(?:"([^"]+)"\.)?"([^"]+)"\."([^"]+)"/g;
+        /Ref\s+"([^"]+)"\s*:\s*(?:"([^"]+)"\.)?"([^"]+)"\."([^"]+)"\s*(<>|[<>*])\s*(?:"([^"]+)"\.)?"([^"]+)"\."([^"]+)"/g;
     const refs: Array<{
         refName: string;
         sourceSchema?: string;
@@ -372,7 +435,18 @@ const convertToInlineRefs = (dbml: string): string => {
     refs.forEach((ref) => {
         let targetTableName, fieldNameToModify, inlineRefSyntax, relatedTable;
 
-        if (ref.direction === '<') {
+        if (ref.direction === '<>') {
+            // Many-to-many: add ref to source field pointing to target
+            targetTableName = ref.sourceSchema
+                ? `${ref.sourceSchema}.${ref.sourceTable}`
+                : ref.sourceTable;
+            fieldNameToModify = ref.sourceField;
+            const targetRef = ref.targetSchema
+                ? `"${ref.targetSchema}"."${ref.targetTable}"."${ref.targetField}"`
+                : `"${ref.targetTable}"."${ref.targetField}"`;
+            inlineRefSyntax = `ref: <> ${targetRef}`;
+            relatedTable = ref.targetTable;
+        } else if (ref.direction === '<') {
             targetTableName = ref.targetSchema
                 ? `${ref.targetSchema}.${ref.targetTable}`
                 : ref.targetTable;
@@ -967,10 +1041,22 @@ export function generateDBMLFromDiagram(diagram: Diagram): DBMLExportResult {
         return true; // Keep unique, non-empty table
     });
 
+    // Sort tables by dbmlOrder to preserve user's DBML code order
+    // Tables without dbmlOrder go to the end, sorted by visual order
+    const sortedTables = [...tablesWithFields].sort((a, b) => {
+        const aOrder = a.dbmlOrder ?? Infinity;
+        const bOrder = b.dbmlOrder ?? Infinity;
+        if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+        }
+        // Fallback to visual order for tables without dbmlOrder
+        return (a.order ?? 0) - (b.order ?? 0);
+    });
+
     // Create the base filtered diagram structure
     const filteredDiagram: Diagram = {
         ...diagram,
-        tables: tablesWithFields,
+        tables: sortedTables,
         relationships:
             diagram.relationships?.filter((rel) => {
                 const sourceTable = tablesWithFields.find(
@@ -1086,6 +1172,15 @@ export function generateDBMLFromDiagram(diagram: Diagram): DBMLExportResult {
 
         // Restore table and field notes/comments that may have been lost during DBML export
         standard = restoreNotes(standard, tablesWithFields);
+
+        // Add many-to-many relationships (skipped by SQL export)
+        const manyToManyRefs = generateManyToManyRefs(
+            finalDiagramForExport.relationships,
+            tablesWithFields
+        );
+        if (manyToManyRefs) {
+            standard = standard.trimEnd() + '\n\n' + manyToManyRefs + '\n';
+        }
 
         // Prepend Enum DBML to the standard output
         if (enumsDBML) {

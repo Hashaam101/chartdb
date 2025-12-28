@@ -352,6 +352,8 @@ const updateTables = ({
         // Build the result table, preserving source structure
         const resultTable: DBTable = {
             ...sourceTable,
+            order: targetTable.order,
+            dbmlOrder: targetTable.dbmlOrder, // Preserve DBML code order from imported DBML
             fields: updatedFields,
             indexes: updatedIndexes,
             comments: targetTable.comments,
@@ -667,10 +669,12 @@ export const applyDBMLChanges = ({
         return indexA - indexB;
     });
 
-    // Return a new diagram object with tables sorted by order
+    // Return a new diagram object preserving DBML table order
+    // Note: The visual 'order' property is preserved on each table for canvas placement,
+    // but array order is kept as-is to match the user's DBML code order
     const result: Diagram = {
         ...sourceDiagram,
-        tables: finalTables.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        tables: finalTables,
         areas: targetDiagram.areas,
         notes: targetDiagram.notes,
         relationships: sortedRelationships,

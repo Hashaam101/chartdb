@@ -633,6 +633,7 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
                     databaseEdition: diagram.databaseEdition,
                     createdAt: diagram.createdAt,
                     updatedAt: diagram.updatedAt,
+                    dbmlSource: diagram.dbmlSource,
                 })
             );
 

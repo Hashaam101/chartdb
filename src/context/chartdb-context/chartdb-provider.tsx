@@ -70,6 +70,9 @@ export const ChartDBProvider: React.FC<
         diagram?.customTypes ?? []
     );
     const [notes, setNotes] = useState<Note[]>(diagram?.notes ?? []);
+    const [dbmlSource, setDbmlSource] = useState<string | null | undefined>(
+        diagram?.dbmlSource
+    );
 
     const { events: diffEvents } = useDiff();
 
@@ -153,6 +156,7 @@ export const ChartDBProvider: React.FC<
             areas,
             customTypes,
             notes,
+            dbmlSource,
         }),
         [
             diagramId,
@@ -160,6 +164,7 @@ export const ChartDBProvider: React.FC<
             databaseType,
             databaseEdition,
             tables,
+            dbmlSource,
             relationships,
             dependencies,
             areas,
@@ -1684,6 +1689,7 @@ export const ChartDBProvider: React.FC<
                 setDiagramUpdatedAt(diagram.updatedAt);
                 setHighlightedCustomTypeId(undefined);
                 setNotes(diagram.notes ?? []);
+                setDbmlSource(diagram.dbmlSource);
 
                 events.emit({ action: 'load_diagram', data: { diagram } });
 

@@ -707,9 +707,7 @@ const validateConfiguration = () => {
         return { useCustomEndpoint: false };
     }
 
-    throw new Error(
-        'Configuration Error: Please provide a Gemini API key'
-    );
+    throw new Error('Configuration Error: Please provide a Gemini API key');
 };
 
 export const exportSQL = async (
@@ -738,18 +736,14 @@ export const exportSQL = async (
     }
 
     // Validate configuration before proceeding
-    const { useCustomEndpoint } = validateConfiguration();
+    validateConfiguration();
 
-    const [{ streamText, generateText }, { createGoogleGenerativeAI }] = await Promise.all([
-        import('ai'),
-        import('@ai-sdk/google'),
-    ]);
+    const [{ streamText, generateText }, { createGoogleGenerativeAI }] =
+        await Promise.all([import('ai'), import('@ai-sdk/google')]);
 
     const apiKey = window?.env?.GEMINI_API_KEY ?? GEMINI_API_KEY;
     const modelName =
-        window?.env?.LLM_MODEL_NAME ??
-        LLM_MODEL_NAME ??
-        'gemini-1.5-flash';
+        window?.env?.LLM_MODEL_NAME ?? LLM_MODEL_NAME ?? 'gemini-1.5-flash';
 
     const google = createGoogleGenerativeAI({
         apiKey: apiKey,

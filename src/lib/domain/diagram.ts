@@ -26,6 +26,7 @@ export interface Diagram {
     notes?: Note[];
     createdAt: Date;
     updatedAt: Date;
+    dbmlSource?: string | null;
 }
 
 export const diagramSchema: z.ZodType<Diagram> = z.object({
@@ -41,4 +42,5 @@ export const diagramSchema: z.ZodType<Diagram> = z.object({
     notes: z.array(noteSchema).optional(),
     createdAt: z.date(),
     updatedAt: z.date(),
+    dbmlSource: z.string().or(z.null()).optional(),
 });

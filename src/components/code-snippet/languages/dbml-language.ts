@@ -65,6 +65,7 @@ export const setupDBMLLanguage = (monaco: Monaco) => {
         ],
         comments: {
             lineComment: '//',
+            blockComment: ['/*', '*/'],
         },
     });
 
@@ -77,6 +78,7 @@ export const setupDBMLLanguage = (monaco: Monaco) => {
             root: [
                 // Comments
                 [/\/\/.*$/, 'comment'],
+                [/\/\*/, 'comment', '@comment'],
 
                 // Keywords - case insensitive
                 [
@@ -108,6 +110,12 @@ export const setupDBMLLanguage = (monaco: Monaco) => {
 
                 // Identifiers
                 [/[a-zA-Z_]\w*/, 'identifier'],
+            ],
+
+            comment: [
+                [/[^/*]+/, 'comment'],
+                [/\*\//, 'comment', '@pop'],
+                [/[/*]/, 'comment'],
             ],
 
             string_double: [

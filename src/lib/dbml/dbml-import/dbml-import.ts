@@ -214,6 +214,40 @@ const mapDBMLTypeToDataType = (
     } satisfies DataTypeData;
 };
 
+/**
+ * Determine cardinality from DBML relationship syntax.
+ * DBML uses: > (many-to-one), < (one-to-many), <> (many-to-many), - (one-to-one)
+ * The relation property on each endpoint indicates its cardinality:
+ * - '>' means the side has "many"
+ * - '<' means the side has "one"
+ * - '*' means "many"
+ * - '1' means "one"
+ */
+const determineCardinalityFromDBML = (
+    sourceRelation: string,
+    targetRelation: string
+): { sourceCardinality: string; targetCardinality: string } => {
+    // Map DBML relation symbols to cardinality
+    const mapRelation = (relation: string): string => {
+        switch (relation) {
+            case '>':
+            case '*':
+                return 'many';
+            case '<':
+            case '1':
+            case '-':
+                return 'one';
+            default:
+                return 'many'; // Default to many for unknown
+        }
+    };
+
+    return {
+        sourceCardinality: mapRelation(sourceRelation),
+        targetCardinality: mapRelation(targetRelation),
+    };
+};
+
 const determineCardinality = (
     field: DBField,
     referencedField: DBField
@@ -753,6 +787,7 @@ export const importDBMLToDiagram = async (
                 name: table.name.replace(/['"]/g, ''),
                 schema: tableSchema,
                 order: index,
+                dbmlOrder: index, // Track DBML code order separately from visual order
                 fields,
                 indexes,
                 x: col * tableSpacing,
@@ -803,8 +838,15 @@ export const importDBMLToDiagram = async (
                     throw new Error('Invalid relationship: fields not found');
                 }
 
+                // Use DBML relation syntax to determine cardinality (>, <, <>, -)
+                // Fall back to field-based detection if relation is not available
                 const { sourceCardinality, targetCardinality } =
-                    determineCardinality(sourceField, targetField);
+                    source.relation && target.relation
+                        ? determineCardinalityFromDBML(
+                              source.relation,
+                              target.relation
+                          )
+                        : determineCardinality(sourceField, targetField);
 
                 return {
                     id: generateId(),

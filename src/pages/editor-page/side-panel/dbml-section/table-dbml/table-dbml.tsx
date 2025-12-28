@@ -39,6 +39,12 @@ import type * as monaco from 'monaco-editor';
 import type { Monaco } from '@monaco-editor/react';
 import { useTranslation } from 'react-i18next';
 import { useFullScreenLoader } from '@/hooks/use-full-screen-spinner';
+import {
+    extractComments,
+    extractTableOrder,
+    mergeComments,
+    reorderDBML,
+} from '@/lib/dbml/dbml-comments/dbml-comments';
 
 export interface TableDBMLProps {}
 
@@ -64,6 +70,9 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
     const decorationsCollection =
         useRef<monaco.editor.IEditorDecorationsCollection>();
     const completionManagerRef = useRef<DBMLCompletionManager>();
+
+    const saveChangesRef = useRef<(exitEditMode?: boolean) => Promise<void>>();
+    const skipNextRegenerationRef = useRef(false);
 
     const handleEditorDidMount = useCallback(
         (
@@ -98,9 +107,15 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
 
             // Register DBML completion provider
             completionManagerRef.current?.dispose();
-            completionManagerRef.current = registerDBMLCompletionProvider(
-                monacoInstance,
-                editor.getValue()
+            completionManagerRef.current =
+                registerDBMLCompletionProvider(monacoInstance);
+
+            // Add Save Command (Ctrl+S / Cmd+S)
+            editor.addCommand(
+                monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS,
+                () => {
+                    saveChangesRef.current?.(false);
+                }
             );
         },
         []
@@ -120,8 +135,7 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [editedDbml, setEditedDbml] = useState<string>('');
     const lastDBMLChange = useRef(editedDbml);
-    const { calculateDiff, originalDiagram, resetDiff, hasDiff, newDiagram } =
-        useDiff();
+    const { calculateDiff, originalDiagram, resetDiff, newDiagram } = useDiff();
     const { loadDiagramFromData } = useChartDB();
     const [errorMessage, setErrorMessage] = useState<string>();
     const [warningMessage, setWarningMessage] = useState<string>();
@@ -172,12 +186,20 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
             return;
         }
 
+        // Skip regeneration if we just saved (to preserve user's DBML formatting)
+        if (skipNextRegenerationRef.current) {
+            skipNextRegenerationRef.current = false;
+            setIsLoading(false);
+            return;
+        }
+
         setErrorMessage(undefined);
         clearErrorHighlight(decorationsCollection.current);
 
         const generateDBML = async () => {
             setIsLoading(true);
 
+            // Always regenerate DBML from diagram to reflect any UI changes
             const result = generateDBMLFromDiagram(currentDiagram);
 
             // Handle errors
@@ -187,6 +209,48 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
                     description: `Could not generate DBML: ${result.error.substring(0, 100)}${result.error.length > 100 ? '...' : ''}`,
                     variant: 'destructive',
                 });
+                setStandardDbml(result.standardDbml);
+                setInlineDbml(result.inlineDbml);
+                setIsLoading(false);
+                return;
+            }
+
+            // If we have saved DBML source, preserve table order and comments
+            if (currentDiagram.dbmlSource) {
+                // Extract table order from original DBML
+                const originalOrder = extractTableOrder(
+                    currentDiagram.dbmlSource
+                );
+                const comments = extractComments(currentDiagram.dbmlSource);
+
+                // Reorder tables to match original DBML order
+                let processedStandard = result.standardDbml;
+                let processedInline = result.inlineDbml;
+
+                if (originalOrder.length > 0) {
+                    processedStandard = reorderDBML(
+                        processedStandard,
+                        originalOrder
+                    );
+                    processedInline = reorderDBML(
+                        processedInline,
+                        originalOrder
+                    );
+                }
+
+                // Merge comments back into the reordered DBML
+                if (comments.length > 0) {
+                    processedStandard = mergeComments(
+                        processedStandard,
+                        comments
+                    );
+                    processedInline = mergeComments(processedInline, comments);
+                }
+
+                setStandardDbml(processedStandard);
+                setInlineDbml(processedInline);
+                setIsLoading(false);
+                return;
             }
 
             setStandardDbml(result.standardDbml);
@@ -281,27 +345,111 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
         debouncedShowDiff(editedDbml);
     }, [editedDbml, isEditMode, debouncedShowDiff]);
 
-    const acceptChanges = useCallback(async () => {
-        if (!editedDbml) return;
-        if (!newDiagram) return;
+    const saveChanges = useCallback(
+        async (exitEditMode = true) => {
+            if (!editedDbml) return;
 
-        showLoader();
+            let targetDiagram = newDiagram;
 
-        await updateDiagramData(newDiagram, { forceUpdateStorage: true });
+            if (!targetDiagram && editedDbml !== dbmlToDisplay) {
+                try {
+                    const diagramFromDBML: Diagram = await importDBMLToDiagram(
+                        editedDbml,
+                        { databaseType }
+                    );
 
-        resetDiff();
-        setEditedDbml(editedDbml);
-        setIsEditMode(false);
-        lastDBMLChange.current = editedDbml;
-        hideLoader();
-    }, [
-        editedDbml,
-        updateDiagramData,
-        newDiagram,
-        resetDiff,
-        showLoader,
-        hideLoader,
-    ]);
+                    const sourceDiagram: Diagram =
+                        originalDiagramRef.current ?? currentDiagramRef.current;
+
+                    targetDiagram = applyDBMLChanges({
+                        sourceDiagram,
+                        targetDiagram: {
+                            ...sourceDiagram,
+                            tables: diagramFromDBML.tables,
+                            relationships: diagramFromDBML.relationships,
+                            customTypes: diagramFromDBML.customTypes,
+                        },
+                    });
+                } catch {
+                    // Fall through to error handling if targetDiagram is still null
+                }
+            }
+
+            if (targetDiagram) {
+                showLoader();
+
+                // Update the timestamp so the save indicator refreshes
+                // Also save the raw DBML source to preserve comments
+                const diagramToSave = {
+                    ...targetDiagram,
+                    updatedAt: new Date(),
+                    dbmlSource: editedDbml,
+                };
+
+                await updateDiagramData(diagramToSave, {
+                    forceUpdateStorage: true,
+                });
+
+                resetDiff();
+
+                // Keep the user's edited DBML as-is (preserve their formatting and order)
+                // Store it as both standard and inline since we're preserving user's exact text
+                setStandardDbml(editedDbml);
+                setInlineDbml(editedDbml);
+                lastDBMLChange.current = editedDbml;
+
+                // Skip the next DBML regeneration to preserve user's formatting
+                skipNextRegenerationRef.current = true;
+
+                if (exitEditMode) {
+                    setIsEditMode(false);
+                } else {
+                    // Restore focus to editor
+                    requestAnimationFrame(() => {
+                        if (editorRef.current) {
+                            editorRef.current.focus();
+                        }
+                    });
+                }
+
+                hideLoader();
+
+                toast({
+                    title: t('saved'),
+                    variant: 'default',
+                });
+            } else {
+                toast({
+                    title: 'Syntax Error',
+                    description:
+                        'Cannot save changes due to DBML syntax errors.',
+                    variant: 'destructive',
+                });
+            }
+        },
+        [
+            editedDbml,
+            newDiagram,
+            dbmlToDisplay,
+            databaseType,
+            showLoader,
+            updateDiagramData,
+            resetDiff,
+            hideLoader,
+            t,
+            toast,
+            originalDiagramRef,
+            currentDiagramRef,
+        ]
+    );
+
+    useEffect(() => {
+        saveChangesRef.current = saveChanges;
+    }, [saveChanges]);
+
+    const acceptChanges = useCallback(() => {
+        saveChanges(true);
+    }, [saveChanges]);
 
     const undoChanges = useCallback(() => {
         if (!editedDbml) return;
@@ -368,7 +516,7 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
                 className="my-0.5"
                 allowCopy={!isEditMode}
                 actions={
-                    isEditMode && hasDiff
+                    isEditMode && editedDbml !== dbmlToDisplay
                         ? [
                               {
                                   label: 'Accept Changes',
@@ -385,7 +533,7 @@ export const TableDBML: React.FC<TableDBMLProps> = () => {
                                       'h-7 items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-100 dark:border-red-800 dark:bg-red-800 dark:text-red-200 dark:hover:bg-red-700',
                               },
                           ]
-                        : isEditMode && !hasDiff
+                        : isEditMode && editedDbml === dbmlToDisplay
                           ? [
                                 {
                                     label: 'View',
